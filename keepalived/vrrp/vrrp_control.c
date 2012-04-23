@@ -224,6 +224,69 @@ error:
 	return NULL;
 }
 
+/*
+ * GROUP
+ */
+static int
+vrrp_control_add_group(control_msg_t *msg, vrrp_sgroup *vgroup)
+{
+	element e;
+
+	ADD_STRING(msg, VRRP_CTRL_GNAME, vgroup->gname);
+
+	for (e = LIST_HEAD(vgroup->index_list); e; ELEMENT_NEXT(e)) {
+		vrrp_rt *vrrp = ELEMENT_DATA(e);
+		ADD_STRING(msg, VRRP_CTRL_INAME, vrrp->iname);
+	}
+	if (vgroup->notify_exec) {
+		if (vgroup->script_backup)
+			ADD_STRING(msg, VRRP_CTRL_NOTIFY_BACKUP, vgroup->script_backup);
+		if (vgroup->script_master)
+			ADD_STRING(msg, VRRP_CTRL_NOTIFY_MASTER, vgroup->script_master);
+		if (vgroup->script_fault)
+			ADD_STRING(msg, VRRP_CTRL_NOTIFY_FAULT, vgroup->script_fault);
+	}
+
+	/* live values */
+	ADD_INT(msg, VRRP_CTRL_STATE, vgroup->state);
+
+	return 0;
+
+error:
+	return 1;
+}
+
+/*
+ * GROUPS
+ */
+static control_msg_t *
+vrrp_control_get_groups(vrrp_ctx_t *vrrp_ctx)
+{
+	control_msg_t *msg;
+	element e;
+
+	if (LIST_ISEMPTY(vrrp_data->vrrp_sync_group)) {
+		return control_msg_error(VRRP_GET_GROUPS, "No vrrp group was found\n",
+			NULL);
+	}
+
+	if (!(msg = control_msg_new(VRRP_GET_GROUPS, VRRP_RESP_OK)))
+		goto error;
+
+	for (e = LIST_HEAD(vrrp_data->vrrp_sync_group); e; ELEMENT_NEXT(e)) {
+		vrrp_sgroup *vgroup = ELEMENT_DATA(e);
+
+		if (vrrp_control_add_group(msg, vgroup))
+			goto error;
+	}
+
+	return msg;
+
+error:
+	control_msg_free(msg);
+	return NULL;
+}
+
 static int
 vrrp_control_send_answer(vrrp_ctx_t *vrrp_ctx, control_msg_t *answer)
 {
@@ -255,6 +318,9 @@ vrrp_control_handle_msg(vrrp_ctx_t *vrrp_ctx)
 	switch (msg->header->verb) {
 	case VRRP_GET_INFO:
 		answer = vrrp_control_info(vrrp_ctx);
+		break;
+	case VRRP_GET_GROUPS:
+		answer = vrrp_control_get_groups(vrrp_ctx);
 		break;
 	default:
 		return -1;

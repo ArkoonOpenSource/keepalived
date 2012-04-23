@@ -150,6 +150,76 @@ check_recv_msg(control_msg_t *msg, cmd_verb verb)
 }
 
 /*
+ * Groups
+ */
+control_msg_t *
+send_groups(action_ctx_t *actx)
+{
+	control_msg_t *msg;
+
+	if (!(msg = control_msg_new(VRRP_GET_GROUPS, VRRP_REQ)))
+		goto error;
+
+	if (control_msg_add_arg_int(msg, VRRP_CTRL_NONE, 0, actx->err))
+		goto error;
+
+	return msg;
+
+error:
+	control_msg_free(msg);
+	return NULL;
+}
+
+char *
+recv_groups(action_ctx_t *actx, control_msg_t *msg)
+{
+	buffer_t *b;
+	int instance = 0;
+	int i;
+	char *check;
+
+	if (check = check_recv_msg(msg, VRRP_GET_GROUPS))
+		return check;
+
+	if (!(b = buffer_new(BUFF_SIZE)))
+		goto error;
+
+	for (i = 0; i < msg->nb_args; i++) {
+		switch (msg->args[i].type) {
+		case VRRP_CTRL_GNAME:
+			BUFF_MSG_STRING(b, msg, i, "VRRP Group");
+			break;
+		case VRRP_CTRL_INAME:
+			if (!instance++)
+				BUFF_ADD_NL(b, "   Virtual Routers in group:");
+			BUFF_ADD_NL(b, "      %s", MSG_GET_STRING(msg, i));
+			break;
+		case VRRP_CTRL_NOTIFY_BACKUP:
+			BUFF_MSG_STRING(b, msg, i,"   Notify Backup");
+			break;
+		case VRRP_CTRL_NOTIFY_MASTER:
+			BUFF_MSG_STRING(b, msg, i,"   Notify Master");
+			break;
+		case VRRP_CTRL_NOTIFY_FAULT:
+			BUFF_MSG_STRING(b, msg, i,"   Notify Fault ");
+			break;
+		case VRRP_CTRL_STATE:
+			BUFF_ADD_NL(b, "   Status       : %s",
+					print_state(MSG_GET_INT(msg, i), 0));
+			break;
+		default:
+			error("unhandled type %d", msg->args[i].type);
+		}
+	}
+
+	return buffer_detach(b);
+
+error:
+	buffer_free(b);
+	return NULL;
+}
+
+/*
  * Info (instances)
  */
 static const char *fmt_info[] =
@@ -293,6 +363,7 @@ out:
 
 action_t actions[] = {
 	{"info", "dump information", send_info, recv_info},
+	{"groups", "show groups information", send_groups, recv_groups},
 };
 
 static void print_list_command(FILE *f)
