@@ -1,0 +1,316 @@
+/*
+ * Soft:        Keepalived is a failover program for the LVS project
+ *              <www.linuxvirtualserver.org>. It monitor & manipulate
+ *              a loadbalanced server pool using multi-layer checks.
+ *
+ * Part:        VRRP control (keepalived client side)
+ *
+ * Authors:     Dimitar Delov, <ddelov@arkoon.net>
+ *              Marc Finet, <mfinet@arkoon.net>
+ *
+ *              This program is distributed in the hope that it will be useful,
+ *              but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *              MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ *              See the GNU General Public License for more details.
+ *
+ *              This program is free software; you can redistribute it and/or
+ *              modify it under the terms of the GNU General Public License
+ *              as published by the Free Software Foundation; either version
+ *              2 of the License, or (at your option) any later version.
+ *
+ * Copyright (C) 2012 Arkoon Network Security
+ */
+
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/syslog.h>
+#include <sys/ioctl.h>
+#include <sys/un.h>
+#include <errno.h>
+#include <assert.h>
+
+#include "libkacontrol.h"
+#include "vrrp.h"
+
+
+
+#define debug(fmt,...) \
+	fprintf(stderr, "%s:%d: " fmt "\n", __FUNCTION__, __LINE__, ## __VA_ARGS__)
+
+#define error(fmt,...) \
+	fprintf(stderr, "ERROR(%s:%d): " fmt "\n", __FUNCTION__, __LINE__, ##__VA_ARGS__)
+
+#define fill_buff(b, size_b, used, fmt, ...) \
+	used = snprintf(b, size_b, fmt, ##__VA_ARGS__); \
+	size_b -= used; \
+	b += used;
+
+/*
+ * Dynamic buffer
+ */
+
+#define BUFF_SIZE	1024
+
+
+#define BUFF_ADD(b, fmt, ...) \
+	do { \
+		int try = 1; \
+		do { \
+			ssize_t len = snprintf(b->ptr + b->cur, b->total - b->cur, \
+					fmt, ##__VA_ARGS__); \
+			if (len >= 0 && len < b->total - b->cur) { \
+				b->cur += len; \
+				try = 0; \
+			} else if (len < 0 || buffer_grow(b, len)) { \
+				goto error; \
+			} \
+		} while (try--); \
+	} while (0)
+
+#define BUFF_ADD_NL(b, fmt, ...) \
+	BUFF_ADD(b, fmt "\n", ##__VA_ARGS__) \
+
+#define BUFF_MSG_YESNO(b, msg, i, s) \
+	BUFF_ADD_NL(b, s ": %-3s", MSG_GET_INT(msg, i) ? "Yes" : "No")
+
+#define BUFF_MSG_INT(b, msg, i, s) \
+	BUFF_ADD_NL(b, s ": %d", MSG_GET_INT(msg, i))
+
+#define BUFF_MSG_STRING(b, msg, i, s) \
+	BUFF_ADD_NL(b, s ": %s", MSG_GET_STRING(msg, i))
+
+/*
+ * Actions
+ */
+
+typedef struct {
+	int argc;
+	char **argv;
+	control_ctx_t *cctx;
+	control_err_t *err;
+} action_ctx_t;
+
+
+typedef struct {
+	const char *name;
+	const char *description;
+	control_msg_t *(*send)(action_ctx_t *);
+	char *(*recv)(action_ctx_t *, control_msg_t *);
+} action_t;
+
+
+static char *
+check_recv_msg(control_msg_t *msg, cmd_verb verb)
+{
+	if (msg->header->verb != verb)
+		return strdup("ERR: Unknown response received\n");
+
+	if (msg->nb_args == 0)
+		return strdup("ERR: Wrong response format; no arguments found\n");
+
+	if (msg->header->flags & VRRP_RESP_NOK) {
+		if (msg->nb_args != 1)
+			return strdup("ERR: Wrong response format\n");
+
+		switch (msg->args[0].type) {
+			case VRRP_CTRL_ERR:
+				return strdup(MSG_GET_STRING(msg, 0));
+			default:
+				return strdup("Request failed!\n");
+		}
+	}
+
+	return NULL;
+}
+
+control_msg_t *
+send_none(action_ctx_t *actx)
+{
+	control_msg_t *msg;
+
+	if (!(msg = control_msg_new(VRRP_GET_MAX, VRRP_REQ)))
+		return NULL;
+
+	if (control_msg_add_arg_int(msg, VRRP_CTRL_NONE, 0, actx->err))
+		goto error;
+
+	return msg;
+
+error:
+	control_msg_free(msg);
+	return NULL;
+}
+
+char *
+recv_none(action_ctx_t *actx, control_msg_t *msg)
+{
+	buffer_t *b;
+	unsigned int i;
+	const char *boost_str;
+	char *check;
+
+	if (check = check_recv_msg(msg, VRRP_GET_MAX))
+		return check;
+
+	if (!(b = buffer_new(BUFF_SIZE)))
+		goto error;
+
+
+	for(i=0; i < msg->nb_args; ++i) {
+		switch (msg->args[i].type) {
+			default:
+				switch(control_msg_arg_type[msg->args[i].type]) {
+					default:
+						BUFF_ADD(b, "Unknown message type");
+				}
+		}
+	}
+
+	return buffer_detach(b);
+
+error:
+	buffer_free(b);
+	return NULL;
+}
+
+int cli_action(control_ctx_t *ctx, const action_t *action, int argc,
+	char *argv[], control_err_t *err)
+{
+	control_msg_t *msg = NULL;
+	action_ctx_t actx;
+	char *output = NULL;
+	int ret = 1;
+
+	actx.cctx = ctx;
+	actx.argc = argc;
+	actx.argv = argv;
+	actx.err = err;
+
+	/* prepare msg */
+	if (!(msg = action->send(&actx))) {
+		error("%s: action send failed: %s", action->name, err->buff);
+		goto out;
+	}
+
+	/* encode, send and wait */
+	if (control_send_wait(ctx, msg, err)) {
+		error("%s: failed to send action: %s", action->name, err->buff);
+		goto out;
+	}
+
+	control_msg_free(msg);
+	msg = NULL;
+
+	/* receive and parse answer */
+	if (!(msg = control_recv_parse(ctx, err))) {
+		error("failed to receive answer: %s", err->buff);
+		goto out;
+	}
+
+	/* interpret it */
+	if (!(output = action->recv(&actx, msg))) {
+		error("%s: action recv error: %s", action->name, err->buff);
+		goto out;
+	}
+	printf("%s", output);
+	ret = 0;
+
+out:
+	control_msg_free(msg);
+	free(output);
+	return ret;
+}
+
+action_t actions[] = {
+	{"none", "test action", send_none, recv_none},
+};
+
+static void print_list_command(FILE *f)
+{
+	int i;
+	fprintf(f, "Commands:\n");
+	for (i = 0; i < sizeof(actions)/sizeof(actions[0]); i++) {
+		fprintf(f, "  %-12s\t%s\n", actions[i].name, actions[i].description);
+	}
+	return;
+}
+
+static void
+print_help(const char *prog, FILE *f)
+{
+	fprintf(f, "Usage: %s [-h|-v|-l]\n", prog);
+	fprintf(f, "       %s <command> [command-options]*\n", prog);
+	fprintf(f, "\nOptions:\n");
+	fprintf(f, "  -h      Display this help\n");
+	fprintf(f, "  -v      Display program version\n");
+	fprintf(f, "  -l      Display list of commands\n");
+	fprintf(f, "\n");
+	print_list_command(f);
+	return;
+}
+
+int
+main(int argc, char *argv[])
+{
+	char err_buf[1024];
+	control_ctx_t *ctx;
+	const char *command;
+	action_t *action = NULL;
+	int i;
+	int opt;
+	control_err_t err;
+
+	control_err_init(&err, err_buf, sizeof(err_buf));
+
+	/* parse global options */
+	while ((opt = getopt(argc, argv, "+hlv")) != -1) {
+		switch (opt) {
+		case 'h':
+			print_help(argv[0], stdout);
+			exit(0);
+			break;
+		case 'l':
+			print_list_command(stdout);
+			exit(0);
+			break;
+		case 'v':
+			fprintf(stdout, "%s %s\n", argv[0], VERSION_DATE);
+			exit(0);
+			break;
+		default:
+			print_help(argv[0], stderr);
+			exit(EXIT_FAILURE);
+		}
+	}
+
+	/* find / check command */
+	command = argv[optind];
+
+	if (!command) {
+		fprintf(stderr, "Error: Missing command\n\n");
+		print_help(argv[0], stderr);
+		exit(1);
+	}
+
+	for (i = 0; i < sizeof(actions)/sizeof(actions[0]); i++) {
+		if (strcmp(command, actions[i].name) == 0) {
+			action = &actions[i];
+		}
+	}
+
+	if (!action) {
+		fprintf(stderr, "Error: Invalid command \"%s\"\n\n", command);
+		print_help(argv[0], stderr);
+		exit(2);
+	}
+
+	if (!(ctx = control_connect(&err))) {
+		error("%s", err.buff);
+		return 1;
+	}
+
+	return cli_action(ctx, action, argc-optind-1, &argv[optind+1], &err);
+}

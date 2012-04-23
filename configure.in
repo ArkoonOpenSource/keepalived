@@ -26,6 +26,8 @@ AC_ARG_ENABLE(vrrp,
   [  --disable-vrrp          do not use the VRRP framework])
 AC_ARG_ENABLE(control,
   [  --enable-control        include control support])
+AC_ARG_ENABLE(control-client,
+  [  --enable-control-client include control client])
 AC_ARG_WITH(kernel-dir,
   [  --with-kernel-dir=DIR   path to linux kernel source directory],
   [kernelinc="$withval/include" kernelpath="$withval"],
@@ -182,8 +184,12 @@ fi
 
 dnl ----[ Check for control ]----
 CONTROL_SUPPORT="_WITHOUT_CONTROL_"
+CONTROL_CLIENT_SUPPORT="_WITHOUT_CONTROL_CLIENT_"
 if test "$enable_control" == "yes"; then
   CONTROL_SUPPORT="_WITH_CONTROL_"
+  if test "$enable_control_client" == "yes"; then
+    CONTROL_CLIENT_SUPPORT="_WITH_CONTROL_CLIENT_"
+  fi
 fi
 
 LIBKACONTROL_SUPPORT="_WITHOUT_LIBKACONTROL_"
@@ -197,6 +203,7 @@ AC_SUBST(IPVS_SUPPORT)
 AC_SUBST(USE_NL)
 AC_SUBST(VRRP_SUPPORT)
 AC_SUBST(CONTROL_SUPPORT)
+AC_SUBST(CONTROL_CLIENT_SUPPORT)
 AC_SUBST(LIBKACONTROL_SUPPORT)
 
 dnl ----[ Checks for typedefs, structures, and compiler characteristics ]----
@@ -225,6 +232,9 @@ if test "$IPVS_SUPPORT" = "_WITH_LVS_"; then
 fi
 if test "$CONTROL_SUPPORT" = "_WITH_CONTROL_"; then
   OUTPUT_TARGET="$OUTPUT_TARGET keepalived/libkacontrol/Makefile"
+fi
+if test "$CONTROL_CLIENT_SUPPORT" = "_WITH_CONTROL_CLIENT_"; then
+  OUTPUT_TARGET="$OUTPUT_TARGET keepalived-client/Makefile"
 fi
 AC_OUTPUT($OUTPUT_TARGET)
 
@@ -271,6 +281,12 @@ if test "${CONTROL_SUPPORT}" = "_WITH_CONTROL_"; then
   echo "Use control              : Yes"
 else
   echo "Use control              : No"
+fi
+
+if test "${CONTROL_CLIENT_SUPPORT}" = "_WITH_CONTROL_CLIENT_"; then
+  echo "Build control client     : Yes"
+else
+  echo "Build control client     : No"
 fi
 
 if test "${DFLAGS}" = "-D_DEBUG_"; then

@@ -1,0 +1,60 @@
+# Makefile for keepalived-client
+
+EXEC      = kactl
+BIN       = ../bin
+KERNEL    = @KERN@
+IPVS_FLAG = @IPVS_SUPPORT@
+VRRP_FLAG = @VRRP_SUPPORT@
+CONTROL_FLAG = @CONTROL_SUPPORT@
+
+prefix      = @prefix@
+exec_prefix = @exec_prefix@
+sbindir     = @sbindir@
+sysconfdir  = @sysconfdir@
+mandir      = @mandir@
+
+CC = @CC@ -I../keepalived/libkacontrol -I../lib -I../keepalived/include -DVERSION_DATE='"@VERSION_DATE@"'
+STRIP = @STRIP@
+LDFLAGS = @LIBS@ @LDFLAGS@ -ldl ../keepalived/libkacontrol/libkacontrol.a
+
+ifeq ($(VRRP_FLAG),_WITH_VRRP_)
+  OBJ += vrrp_control_cli.o
+endif
+
+all: $(OBJ)
+	echo "Building $(BIN)/$(EXEC)" && \
+	$(CC) -o $(BIN)/$(EXEC) $(OBJ) $(LDFLAGS)
+	$(STRIP) $(BIN)/$(EXEC)
+	@echo ""
+	@echo "Make complete"
+
+debug:
+	echo "Building $(BIN)/$(EXEC)" && \
+	$(CC) -o $(BIN)/$(EXEC) $(OBJ) $(LDFLAGS) -ggdb
+	@echo ""
+	@echo "Make complete"
+
+profile:
+	echo "Building $(BIN)/$(EXEC)" && \
+	$(CC) -o $(BIN)/$(EXEC) $(OBJ) $(LDFLAGS) -pg
+	@echo ""
+	@echo "Make complete"
+
+clean:
+	rm -f *.o *~
+	@echo ""
+	@echo "Make complete"
+
+distclean: clean
+	rm -f Makefile $(BIN)/$(EXEC)
+	rm -f include/config.h
+
+mrproper: distclean
+	rm -f config.*
+
+uninstall:
+	rm -f $(DESTDIR)$(sbindir)/$(EXEC)
+
+install:
+	install -d $(DESTDIR)$(sbindir)
+	install -m 700 $(BIN)/$(EXEC) $(DESTDIR)$(sbindir)/
