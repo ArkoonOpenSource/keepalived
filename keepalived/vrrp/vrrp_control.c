@@ -33,6 +33,7 @@
 
 #include "vrrp_data.h"
 #include "vrrp_control.h"
+#include "vrrp_if.h"
 #include "vrrp.h"
 #include "memory.h"
 #include "utils.h"
@@ -170,6 +171,59 @@ vrrp_control_free(vrrp_ctx_t *vrrp_ctx)
 		} \
 	} while (0)
 
+/*
+ * Info part
+ */
+static control_msg_t *
+vrrp_control_info(vrrp_ctx_t *vrrp_ctx)
+{
+	control_msg_t *msg;
+	control_msg_t *msg_r = vrrp_ctx->msg;
+	vrrp_rt *vrrp;
+	element e;
+	int i, vrid = 0;
+
+	if (LIST_ISEMPTY(vrrp_data->vrrp)) {
+		return control_msg_error(VRRP_GET_INFO, NO_VRRP_INSTANCE, NULL);
+	}
+
+	if (!(msg = control_msg_new(VRRP_GET_INFO, VRRP_RESP_OK)))
+		goto error;
+
+	for (i=0; i < msg_r->nb_args; i++) {
+		if (msg_r->args[i].type == VRRP_CTRL_VRID) {
+			vrid = MSG_GET_INT(msg_r, i);
+			break;
+		}
+	}
+
+	for(e = LIST_HEAD(vrrp_data->vrrp); e; ELEMENT_NEXT(e)) {
+		vrrp = ELEMENT_DATA(e);
+
+		if ((vrid > 0) && (vrid != vrrp->vrid))
+			continue;
+
+		ADD_STRING(msg, VRRP_CTRL_IF_NAME, IF_NAME(vrrp->ifp));
+		ADD_STRING(msg, VRRP_CTRL_INAME, vrrp->iname);
+		ADD_INT(msg, VRRP_CTRL_VRID, vrrp->vrid);
+		ADD_INT(msg, VRRP_CTRL_STATE, vrrp->state);
+		ADD_INT(msg, VRRP_CTRL_INIT_STATE, vrrp->init_state);
+		ADD_INT(msg, VRRP_CTRL_RUN_PRIO, vrrp->effective_priority);
+		ADD_INT(msg, VRRP_CTRL_NOPREEMPT, vrrp->nopreempt);
+		if (vrrp->nopreempt == 0) {
+			ADD_INT(msg, VRRP_CTRL_PREEMPT_DELAY, vrrp->preempt_delay / TIMER_HZ);
+		}
+		ADD_INT(msg, VRRP_CTRL_ADV_INTERVAL, vrrp->adver_int / TIMER_HZ);
+		ADD_INT(msg, VRRP_CTRL_GARP_DELAY, vrrp->garp_delay / TIMER_HZ);
+	}
+
+	return msg;
+
+error:
+	control_msg_free(msg);
+	return NULL;
+}
+
 static int
 vrrp_control_send_answer(vrrp_ctx_t *vrrp_ctx, control_msg_t *answer)
 {
@@ -199,6 +253,9 @@ vrrp_control_handle_msg(vrrp_ctx_t *vrrp_ctx)
 
 	debug("verb=%d, type=%d", msg->header->verb, msg->args[0].type);
 	switch (msg->header->verb) {
+	case VRRP_GET_INFO:
+		answer = vrrp_control_info(vrrp_ctx);
+		break;
 	default:
 		return -1;
 	}

@@ -102,6 +102,29 @@ typedef struct {
 } action_t;
 
 
+
+static const char *
+print_state(int vrrp_state, int translate)
+{
+	switch(vrrp_state) {
+	case VRRP_STATE_MAST:
+		return "MASTER";
+	case VRRP_STATE_BACK:
+		return "BACKUP";
+	case VRRP_STATE_FAULT:
+		return translate ? "Disconnected" : "FAULT";
+	case VRRP_STATE_INIT:
+		return "INIT";
+	case VRRP_STATE_GOTO_MASTER:
+		return "GOTO_MASTER";
+	case VRRP_STATE_LEAVE_MASTER:
+		return "LEAVE_MASTER";
+	case VRRP_STATE_GOTO_FAULT:
+		return "GOTO_FAULT";
+	}
+	return "Invalid State";
+}
+
 static char *
 check_recv_msg(control_msg_t *msg, cmd_verb verb)
 {
@@ -126,16 +149,43 @@ check_recv_msg(control_msg_t *msg, cmd_verb verb)
 	return NULL;
 }
 
+/*
+ * Info (instances)
+ */
+static const char *fmt_info[] =
+{
+	[VRRP_CTRL_IF_NAME] = "Interface : %s",
+	[VRRP_CTRL_INAME] = "\n   Instance name\t: %-12s",
+	[VRRP_CTRL_VRID] = "\t\tVRID\t\t: %d",
+	[VRRP_CTRL_STATE] = "\n   State\t\t: %-12s",
+	[VRRP_CTRL_INIT_STATE] = "\t\tInit state\t: %s",
+	[VRRP_CTRL_RUN_PRIO] = "\n   Running Priority\t: %-12d",
+	[VRRP_CTRL_ADDR6] = "\n   Master IPv6\t\t: %s",
+	[VRRP_CTRL_ADDR] = "\n   Master IPv4\t\t: %s",
+	[VRRP_CTRL_NOPREEMPT] = "\n   Preempt\t\t: %-12s",
+	[VRRP_CTRL_PREEMPT_DELAY] = "\t\tDelay to preempt: %d seconds",
+	[VRRP_CTRL_ADV_INTERVAL] = "\n   Advert interval\t: %d seconds",
+	[VRRP_CTRL_GARP_DELAY] = "\n   NA delay\t\t: %d seconds\n",
+};
+
+
 control_msg_t *
-send_none(action_ctx_t *actx)
+send_info(action_ctx_t *actx)
 {
 	control_msg_t *msg;
+	int vrid;
 
-	if (!(msg = control_msg_new(VRRP_GET_MAX, VRRP_REQ)))
+	if (!(msg = control_msg_new(VRRP_GET_INFO, VRRP_REQ)))
 		return NULL;
 
-	if (control_msg_add_arg_int(msg, VRRP_CTRL_NONE, 0, actx->err))
-		goto error;
+	if (actx->argc == 1) {
+		vrid = atoi(actx->argv[0]);
+		control_msg_add_arg_int(msg, VRRP_CTRL_VRID, vrid, actx->err);
+	}
+	else {
+		if (control_msg_add_arg_int(msg, VRRP_CTRL_NONE, 0, actx->err))
+			goto error;
+	}
 
 	return msg;
 
@@ -145,14 +195,14 @@ error:
 }
 
 char *
-recv_none(action_ctx_t *actx, control_msg_t *msg)
+recv_info(action_ctx_t *actx, control_msg_t *msg)
 {
 	buffer_t *b;
 	unsigned int i;
 	const char *boost_str;
 	char *check;
 
-	if (check = check_recv_msg(msg, VRRP_GET_MAX))
+	if (check = check_recv_msg(msg, VRRP_GET_INFO))
 		return check;
 
 	if (!(b = buffer_new(BUFF_SIZE)))
@@ -161,8 +211,25 @@ recv_none(action_ctx_t *actx, control_msg_t *msg)
 
 	for(i=0; i < msg->nb_args; ++i) {
 		switch (msg->args[i].type) {
+			case VRRP_CTRL_INIT_STATE:
+			case VRRP_CTRL_STATE:
+				BUFF_ADD(b, fmt_info[msg->args[i].type],
+						print_state(MSG_GET_INT(msg, i), 0));
+				break;
+			case VRRP_CTRL_NOPREEMPT:
+				BUFF_ADD(b, fmt_info[msg->args[i].type],
+						MSG_GET_INT(msg, i) ? "Disabled" : "Enabled");
+				break;
 			default:
 				switch(control_msg_arg_type[msg->args[i].type]) {
+					case ARG_INT:
+						BUFF_ADD(b, fmt_info[msg->args[i].type],
+								MSG_GET_INT(msg, i));
+						break;
+					case ARG_STRING:
+						BUFF_ADD(b, fmt_info[msg->args[i].type],
+								MSG_GET_STRING(msg, i));
+						break;
 					default:
 						BUFF_ADD(b, "Unknown message type");
 				}
@@ -225,7 +292,7 @@ out:
 }
 
 action_t actions[] = {
-	{"none", "test action", send_none, recv_none},
+	{"info", "dump information", send_info, recv_info},
 };
 
 static void print_list_command(FILE *f)
