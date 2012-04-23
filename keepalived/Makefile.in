@@ -9,9 +9,13 @@ BIN       = ../bin
 KERNEL    = @KERN@
 IPVS_FLAG = @IPVS_SUPPORT@
 VRRP_FLAG = @VRRP_SUPPORT@
+CONTROL_FLAG = @CONTROL_SUPPORT@
+LIBKACONTROL_FLAG = @LIBKACONTROL_SUPPORT@
 
 prefix      = @prefix@
 exec_prefix = @exec_prefix@
+libdir      = @libdir@
+includedir  = @includedir@
 sbindir     = @sbindir@
 sysconfdir  = @sysconfdir@
 mandir      = @mandir@
@@ -38,6 +42,10 @@ ifeq ($(IPVS_FLAG),_WITH_LVS_)
   else
     SUBDIRS += libipvs-2.6
   endif
+endif
+
+ifeq ($(CONTROL_FLAG),_WITH_CONTROL_)
+  SUBDIRS += libkacontrol
 endif
 
 all:
@@ -107,3 +115,9 @@ install:
 	install -d $(DESTDIR)$(mandir)/man8
 	install -m 644 ../doc/man/man5/keepalived.conf.5 $(DESTDIR)$(mandir)/man5
 	install -m 644 ../doc/man/man8/keepalived.8 $(DESTDIR)$(mandir)/man8
+ifeq ($(LIBKACONTROL_FLAG),_WITH_LIBKACONTROL_)
+	install -d $(DESTDIR)$(includedir)/libkacontrol
+	install -m 755 libkacontrol/libkacontrol.h $(DESTDIR)$(includedir)/libkacontrol/
+	install -d $(DESTDIR)$(libdir)
+	install -m 644 libkacontrol/libkacontrol.a $(DESTDIR)$(libdir)/
+endif

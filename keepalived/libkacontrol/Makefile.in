@@ -1,0 +1,24 @@
+# Makefile for libkacontrol
+
+CC		= @CC@
+INCLUDES = -I../include -I../../lib
+CFLAGS		= @CFLAGS@ -fPIC @CPPFLAGS@ -D@USE_NL@ -Wall -Wunused
+
+export OBJS += libkacontrol.a
+
+STATIC_LIB	= libkacontrol.a
+
+all:		$(STATIC_LIB)
+
+$(STATIC_LIB):	libkacontrol.o
+		ar rv $@ $^
+		rm $^
+
+%.o:		%.c
+		$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+
+clean:
+		rm -f *.[ao] *~ *.orig *.rej core
+
+distclean:	clean
+		rm -f Makefile
