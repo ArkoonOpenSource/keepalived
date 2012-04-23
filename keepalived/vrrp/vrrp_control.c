@@ -287,6 +287,86 @@ error:
 	return NULL;
 }
 
+/*
+ * TRACKING
+ */
+static int
+vrrp_control_interface_tracking(control_msg_t *msg, vrrp_rt *vrrp)
+{
+	element e;
+	int found = 0;
+	for (e = LIST_HEAD(vrrp->track_ifp); e; ELEMENT_NEXT(e)) {
+		tracked_if *tip = ELEMENT_DATA(e);
+		if (!tip->ifp)
+			continue;
+		found = 1;
+		ADD_STRING(msg, VRRP_CTRL_IF_NAME, tip->ifp->ifname);
+		if (tip->weight < 0 && !IF_ISUP(tip->ifp)) {
+			ADD_INT(msg, VRRP_CTRL_IFUP, 0);
+			ADD_INT(msg, VRRP_CTRL_WEIGHT, tip->weight);
+		} else {
+			ADD_INT(msg, VRRP_CTRL_IFUP, 1);
+		}
+	}
+
+	return found;
+
+error:
+	return -1;
+}
+
+static int
+vrrp_control_script_tracking(control_msg_t *msg, vrrp_script *vscript)
+{
+	ADD_STRING(msg, VRRP_CTRL_SNAME, vscript->sname);
+	ADD_STRING(msg, VRRP_CTRL_SCRIPT_COMMAND, vscript->script);
+	ADD_INT(msg, VRRP_CTRL_SCRIPT_RISE, vscript->rise);
+	ADD_INT(msg, VRRP_CTRL_SCRIPT_FALL, vscript->fall);
+	ADD_INT(msg, VRRP_CTRL_SCRIPT_RESULT, vscript->result);
+	ADD_INT(msg, VRRP_CTRL_WEIGHT, vscript->weight);
+	return 0;
+
+error:
+	return 1;
+}
+
+static control_msg_t *
+vrrp_control_get_tracking(vrrp_ctx_t *vrrp_ctx)
+{
+	control_msg_t *msg;
+	element e;
+
+	if (!(msg = control_msg_new(VRRP_GET_TRACKING, VRRP_RESP_OK)))
+		goto error;
+
+	/* Interface tracking */
+	for (e = LIST_HEAD(vrrp_data->vrrp); e; ELEMENT_NEXT(e)) {
+		vrrp_rt *vrrp = ELEMENT_DATA(e);
+		int rc = vrrp_control_interface_tracking(msg, vrrp);
+
+		if (rc < 0)
+			goto error;
+
+		/* stop at first if group to avoid duplicates */
+		if (vrrp->sync && rc == 1)
+			break;
+	}
+
+	/* Script tracking */
+	for (e = LIST_HEAD(vrrp_data->vrrp_script); e; ELEMENT_NEXT(e)) {
+		vrrp_script *vscript = ELEMENT_DATA(e);
+
+		if (vrrp_control_script_tracking(msg, vscript))
+			goto error;
+	}
+
+	return msg;
+
+error:
+	control_msg_free(msg);
+	return NULL;
+}
+
 static int
 vrrp_control_send_answer(vrrp_ctx_t *vrrp_ctx, control_msg_t *answer)
 {
@@ -321,6 +401,9 @@ vrrp_control_handle_msg(vrrp_ctx_t *vrrp_ctx)
 		break;
 	case VRRP_GET_GROUPS:
 		answer = vrrp_control_get_groups(vrrp_ctx);
+		break;
+	case VRRP_GET_TRACKING:
+		answer = vrrp_control_get_tracking(vrrp_ctx);
 		break;
 	default:
 		return -1;

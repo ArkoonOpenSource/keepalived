@@ -220,6 +220,99 @@ error:
 }
 
 /*
+ * Tracking
+ */
+const char *
+print_script_result(int result, int rise, int fall)
+{
+	switch (result) {
+	case VRRP_SCRIPT_STATUS_INIT:
+		return "INIT";
+	case VRRP_SCRIPT_STATUS_INIT_GOOD:
+		return "INIT/GOOD";
+	case VRRP_SCRIPT_STATUS_DISABLED:
+		return "DISABLED";
+	}
+	return (result >= rise ? "GOOD" : "BAD");
+}
+
+char *
+recv_tracking(action_ctx_t *actx, control_msg_t *msg)
+{
+	buffer_t *b;
+	int instance = 0;
+	int i;
+	int fall;
+	int rise;
+
+	if (!(b = buffer_new(BUFF_SIZE)))
+		goto error;
+
+	for (i = 0; i < msg->nb_args; i++) {
+		switch (msg->args[i].type) {
+		case VRRP_CTRL_IF_NAME:
+			BUFF_MSG_STRING(b, msg, i, "Interface");
+			break;
+		case VRRP_CTRL_IFUP:
+			BUFF_ADD_NL(b, "   Result\t: %s", MSG_GET_INT(msg, i) ? "UP" : "DOWN");
+			break;
+		case VRRP_CTRL_WEIGHT:
+			BUFF_MSG_INT(b, msg, i, "   Offset\t");
+			break;
+		case VRRP_CTRL_SNAME:
+			BUFF_MSG_STRING(b, msg, i, "VRRP Script");
+			break;
+		case VRRP_CTRL_SCRIPT_COMMAND:
+			BUFF_ADD_NL(b, "   Command\t: \"%s\"", MSG_GET_STRING(msg, i));
+			rise = -1;
+			fall = -1;
+			break;
+		case VRRP_CTRL_SCRIPT_RISE:
+			rise = MSG_GET_INT(msg, i);
+			BUFF_MSG_INT(b, msg, i, "   Rise\t\t");
+			break;
+		case VRRP_CTRL_SCRIPT_FALL:
+			fall = MSG_GET_INT(msg, i);
+			BUFF_MSG_INT(b, msg, i, "   Fall\t\t");
+			break;
+		case VRRP_CTRL_SCRIPT_RESULT:
+			BUFF_ADD_NL(b, "   Result\t: %s (%d)",
+				print_script_result(MSG_GET_INT(msg, i), rise, fall),
+				MSG_GET_INT(msg, i));
+			break;
+		default:
+			error("unhandled type %d", msg->args[i].type);
+		}
+	}
+
+	return buffer_detach(b);
+
+error:
+	buffer_free(b);
+	return NULL;
+}
+
+control_msg_t *
+send_tracking(action_ctx_t *actx)
+{
+	control_msg_t *msg;
+
+	if (!(msg = control_msg_new(VRRP_GET_TRACKING, VRRP_REQ)))
+		return NULL;
+
+	if (control_msg_add_arg_int(msg, VRRP_CTRL_NONE, 0, actx->err))
+		goto error;
+
+	return msg;
+
+error:
+	control_msg_free(msg);
+	return NULL;
+}
+
+
+
+/*
  * Info (instances)
  */
 static const char *fmt_info[] =
@@ -364,6 +457,7 @@ out:
 action_t actions[] = {
 	{"info", "dump information", send_info, recv_info},
 	{"groups", "show groups information", send_groups, recv_groups},
+	{"tracking", "show tracking information", send_tracking, recv_tracking},
 };
 
 static void print_list_command(FILE *f)
