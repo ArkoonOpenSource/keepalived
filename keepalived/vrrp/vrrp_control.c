@@ -288,6 +288,56 @@ error:
 }
 
 /*
+ * Virtual IPs
+ */
+static control_msg_t *
+vrrp_control_vips(vrrp_ctx_t *vrrp_ctx)
+{
+	control_msg_t *msg;
+	vrrp_rt *vrrp;
+	element e, e1;
+	ip_address *ip;
+	char addr_str[INET6_ADDRSTRLEN];
+
+	if (LIST_ISEMPTY(vrrp_data->vrrp)) {
+		return control_msg_error(VRRP_GET_ADDR, NO_VRRP_INSTANCE, NULL);
+	}
+
+	if (!(msg = control_msg_new(VRRP_GET_ADDR, VRRP_RESP_OK)))
+		goto error;
+
+	for(e = LIST_HEAD(vrrp_data->vrrp); e; ELEMENT_NEXT(e)) {
+		vrrp = ELEMENT_DATA(e);
+		ADD_STRING(msg, VRRP_CTRL_INAME, vrrp->iname);
+		if (!VRRP_VIP_ISSET(vrrp) || LIST_ISEMPTY(vrrp->vip)) {
+			ADD_STRING(msg, VRRP_CTRL_ADDR6, "None");
+		} else {
+			for (e1 = LIST_HEAD(vrrp->vip); e1; ELEMENT_NEXT(e1)) {
+				ip = ELEMENT_DATA(e1);
+				switch (IP_FAMILY(ip)) {
+					case AF_INET6:
+						inet_ntop(AF_INET6, &ip->u.sin6_addr, addr_str, INET6_ADDRSTRLEN);
+						ADD_STRING(msg, VRRP_CTRL_ADDR6, addr_str);
+						break;
+					case AF_INET:
+						inet_ntop(AF_INET, &ip->u.sin.sin_addr, addr_str, INET_ADDRSTRLEN);
+						ADD_STRING(msg, VRRP_CTRL_ADDR, addr_str);
+						break;
+					default:
+						goto error;
+				}
+			}
+		}
+	}
+
+	return msg;
+
+error:
+	control_msg_free(msg);
+	return NULL;
+}
+
+/*
  * TRACKING
  */
 static int
@@ -404,6 +454,9 @@ vrrp_control_handle_msg(vrrp_ctx_t *vrrp_ctx)
 		break;
 	case VRRP_GET_TRACKING:
 		answer = vrrp_control_get_tracking(vrrp_ctx);
+		break;
+	case VRRP_GET_ADDR:
+		answer = vrrp_control_vips(vrrp_ctx);
 		break;
 	default:
 		return -1;

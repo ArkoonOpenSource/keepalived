@@ -41,6 +41,7 @@
 typedef enum CMD_VERB
 {
 	VRRP_GET_INFO,
+	VRRP_GET_ADDR,
 	VRRP_GET_GROUPS,
 	VRRP_GET_TRACKING,
 } cmd_verb;

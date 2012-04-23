@@ -406,6 +406,61 @@ error:
 	return NULL;
 }
 
+/*
+ * Get virtual IPs
+ */
+control_msg_t *
+send_vips(action_ctx_t *actx)
+{
+       control_msg_t *msg;
+
+       if (!(msg = control_msg_new(VRRP_GET_ADDR, VRRP_REQ)))
+               return NULL;
+
+       if (control_msg_add_arg_int(msg, VRRP_CTRL_NONE, 0, actx->err))
+               goto error;
+
+       return msg;
+
+error:
+       control_msg_free(msg);
+       return NULL;
+}
+
+char *
+recv_vips(action_ctx_t *actx, control_msg_t *msg)
+{
+	buffer_t *b;
+	unsigned int i;
+	char *check;
+
+	if (check = check_recv_msg(msg, VRRP_GET_ADDR))
+		return check;
+
+	if (!(b = buffer_new(BUFF_SIZE)))
+		goto error;
+
+	for(i=0; i < msg->nb_args; ++i) {
+		switch (msg->args[i].type) {
+			case VRRP_CTRL_INAME:
+				BUFF_ADD_NL(b, "Instance %s:", MSG_GET_STRING(msg, i));
+				break;
+			case VRRP_CTRL_ADDR:
+			case VRRP_CTRL_ADDR6:
+				BUFF_ADD_NL(b, "   %s", MSG_GET_STRING(msg, i));
+				break;
+			default:
+				BUFF_ADD_NL(b, "Unknown message type");
+		}
+	}
+
+	return buffer_detach(b);
+
+error:
+	buffer_free(b);
+	return NULL;
+}
+
 int cli_action(control_ctx_t *ctx, const action_t *action, int argc,
 	char *argv[], control_err_t *err)
 {
@@ -457,6 +512,7 @@ out:
 action_t actions[] = {
 	{"info", "dump information", send_info, recv_info},
 	{"groups", "show groups information", send_groups, recv_groups},
+	{"vips", "show virtual IP addresses", send_vips, recv_vips},
 	{"tracking", "show tracking information", send_tracking, recv_tracking},
 };
 
