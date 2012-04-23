@@ -4,17 +4,26 @@
 #
 # Copyright (C) 2001-2011 Alexandre Cassen, <acassen@linux-vs.org>
 
+CONTROL_FLAG = @CONTROL_SUPPORT@
+
 CC	 = @CC@
 INCLUDES = -I../include -I../../lib
+ifeq ($(CONTROL_FLAG), _WITH_CONTROL_)
+  INCLUDES += -I../libkacontrol
+endif
 CFLAGS	 = @CFLAGS@ @CPPFLAGS@ $(INCLUDES) \
 	   -Wall -Wunused -Wstrict-prototypes
-DEFS	 = -D@KERN@ -D@IPVS_SUPPORT@ -D@IPVS_SYNCD@ @DFLAGS@
+DEFS	 = -D@KERN@ -D@IPVS_SUPPORT@ -D@IPVS_SYNCD@ -D@CONTROL_SUPPORT@ @DFLAGS@
 COMPILE	 = $(CC) $(CFLAGS) $(DEFS)
 
-OBJS = 	vrrp_daemon.o vrrp_data.o vrrp_parser.o \
-	vrrp.o vrrp_notify.o vrrp_scheduler.o vrrp_sync.o vrrp_index.o \
+OBJS = 	vrrp_daemon.o vrrp_data.o vrrp_parser.o vrrp.o vrrp_notify.o \
+	vrrp_scheduler.o vrrp_sync.o vrrp_index.o \
 	vrrp_netlink.o vrrp_arp.o vrrp_if.o vrrp_track.o vrrp_ipaddress.o \
 	vrrp_iproute.o vrrp_ipsecah.o vrrp_ndisc.o vrrp_vmac.o
+ifeq ($(CONTROL_FLAG), _WITH_CONTROL_)
+OBJS += vrrp_control.o
+endif
+
 HEADERS = $(OBJS:.o=.h)
 
 .c.o:
@@ -72,3 +81,7 @@ vrrp_iproute.o: vrrp_iproute.c ../include/vrrp_iproute.h ../include/vrrp_netlink
 vrrp_ipsecah.o: vrrp_ipsecah.c ../include/vrrp_ipsecah.h
 vrrp_ndisc.o: vrrp_ndisc.c ../include/vrrp_ndisc.h ../include/vrrp_ipaddress.h \
   ../../lib/utils.h ../../lib/memory.h
+vrrp_control.o: vrrp_control.c ../include/vrrp_control.h ../include/check_api.h \
+  ../../lib/memory.h ../../lib/scheduler.h \
+  ../../lib/utils.h
+
