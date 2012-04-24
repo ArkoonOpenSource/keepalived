@@ -238,6 +238,7 @@ vrrp_control_add_group(control_msg_t *msg, vrrp_sgroup *vgroup)
 		vrrp_rt *vrrp = ELEMENT_DATA(e);
 		ADD_STRING(msg, VRRP_CTRL_INAME, vrrp->iname);
 	}
+	ADD_INT(msg, VRRP_CTRL_GLOBAL_TRACKING, vgroup->global_tracking);
 	if (vgroup->notify_exec) {
 		if (vgroup->script_backup)
 			ADD_STRING(msg, VRRP_CTRL_NOTIFY_BACKUP, vgroup->script_backup);
