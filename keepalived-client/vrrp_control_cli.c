@@ -194,6 +194,9 @@ recv_groups(action_ctx_t *actx, control_msg_t *msg)
 				BUFF_ADD_NL(b, "   Virtual Routers in group:");
 			BUFF_ADD_NL(b, "      %s", MSG_GET_STRING(msg, i));
 			break;
+		case VRRP_CTRL_GLOBAL_TRACKING:
+			BUFF_MSG_YESNO(b, msg, i, "   Global track ");
+			break;
 		case VRRP_CTRL_NOTIFY_BACKUP:
 			BUFF_MSG_STRING(b, msg, i,"   Notify Backup");
 			break;
