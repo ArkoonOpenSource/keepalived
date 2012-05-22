@@ -357,7 +357,7 @@ vrrp_control_set_manual_priority(int prio)
 	for(e = LIST_HEAD(vrrp_data->vrrp); e; ELEMENT_NEXT(e)) {
 		vrrp = ELEMENT_DATA(e);
 
-		if (vrrp->sync) {
+		if (vrrp->sync && !vrrp->sync->global_tracking) {
 			log_message(LOG_INFO, "VRRP_Instance(%s) Cannot set"
 				" manual priority because of sync group",
 				vrrp->iname);
