@@ -806,7 +806,7 @@ vrrp_state_leave_master(vrrp_rt * vrrp)
 	}
 
 	/* Set the down timer */
-	vrrp->ms_down_timer = 3 * vrrp->adver_int + VRRP_TIMER_SKEW(vrrp);
+	vrrp->ms_down_timer = VRRP_TIMER_MS_DOWN(vrrp);
 }
 
 /* BACKUP state processing */
@@ -824,12 +824,12 @@ vrrp_state_backup(vrrp_rt * vrrp, char *buf, int buflen)
 	if (ret == VRRP_PACKET_KO || ret == VRRP_PACKET_NULL) {
 		log_message(LOG_INFO, "VRRP_Instance(%s) ignoring received advertisment..."
 			            ,  vrrp->iname);
-		vrrp->ms_down_timer = 3 * vrrp->adver_int + VRRP_TIMER_SKEW(vrrp);
+		vrrp->ms_down_timer = VRRP_TIMER_MS_DOWN(vrrp);
 	} else if (hd->priority == 0) {
 		vrrp->ms_down_timer = VRRP_TIMER_SKEW(vrrp);
 	} else if (vrrp->nopreempt || hd->priority >= vrrp->effective_priority ||
 		   timer_cmp(vrrp->preempt_time, timer_now()) > 0) {
-		vrrp->ms_down_timer = 3 * vrrp->adver_int + VRRP_TIMER_SKEW(vrrp);
+		vrrp->ms_down_timer = VRRP_TIMER_MS_DOWN(vrrp);
 	} else if (hd->priority < vrrp->effective_priority) {
 		log_message(LOG_INFO, "VRRP_Instance(%s) forcing a new MASTER election"
 				    , vrrp->iname);
@@ -867,7 +867,7 @@ vrrp_state_master_rx(vrrp_rt * vrrp, char *buf, int buflen)
 
 	/* return on link failure */
 	if (vrrp->wantstate == VRRP_STATE_GOTO_FAULT) {
-		vrrp->ms_down_timer = 3 * vrrp->adver_int + VRRP_TIMER_SKEW(vrrp);
+		vrrp->ms_down_timer = VRRP_TIMER_MS_DOWN(vrrp);
 		vrrp->state = VRRP_STATE_FAULT;
 		notify_instance_exec(vrrp, VRRP_STATE_FAULT);
 		return 1;
@@ -915,7 +915,7 @@ vrrp_state_master_rx(vrrp_rt * vrrp, char *buf, int buflen)
 				vrrp->ipsecah_counter->seq_number = ntohl(ah->seq_number) - 1;
 				vrrp->ipsecah_counter->cycle = 0;
 			}
-			vrrp->ms_down_timer = 3 * vrrp->adver_int + VRRP_TIMER_SKEW(vrrp);
+			vrrp->ms_down_timer = VRRP_TIMER_MS_DOWN(vrrp);
 			vrrp->wantstate = VRRP_STATE_BACK;
 			vrrp->state = VRRP_STATE_BACK;
 			return 1;
@@ -925,7 +925,7 @@ vrrp_state_master_rx(vrrp_rt * vrrp, char *buf, int buflen)
 		if (hd->priority > vrrp->effective_priority) {
 			log_message(LOG_INFO, "VRRP_Instance(%s) Received higher prio advert"
 					    , vrrp->iname);
-			vrrp->ms_down_timer = 3 * vrrp->adver_int + VRRP_TIMER_SKEW(vrrp);
+			vrrp->ms_down_timer = VRRP_TIMER_MS_DOWN(vrrp);
 			vrrp->wantstate = VRRP_STATE_BACK;
 			vrrp->state = VRRP_STATE_BACK;
 			return 1;

@@ -208,6 +208,19 @@ vrrp_adv_handler(vector strvec)
 	vrrp->adver_int *= TIMER_HZ;
 }
 static void
+vrrp_mult_factor(vector strvec)
+{
+	vrrp_rt *vrrp = LIST_TAIL_DATA(vrrp_data->vrrp);
+	vrrp->mult_factor = atoi(VECTOR_SLOT(strvec, 1));
+
+	if (vrrp->mult_factor == 0) {
+		log_message(LOG_INFO, "VRRP Error: invalid mult_factor !\n");
+		log_message(LOG_INFO, "            Using default value: %d\n"
+				    , VRRP_MULT_FACTOR_DFL);
+		vrrp->mult_factor = VRRP_MULT_FACTOR_DFL;
+	}
+}
+static void
 vrrp_debug_handler(vector strvec)
 {
 	vrrp_rt *vrrp = LIST_TAIL_DATA(vrrp_data->vrrp);
@@ -443,6 +456,7 @@ vrrp_init_keywords(void)
 	install_keyword("virtual_router_id", &vrrp_vrid_handler);
 	install_keyword("priority", &vrrp_prio_handler);
 	install_keyword("advert_int", &vrrp_adv_handler);
+	install_keyword("mult_factor", &vrrp_mult_factor);
 	install_keyword("virtual_ipaddress", &vrrp_vip_handler);
 	install_keyword("virtual_ipaddress_excluded", &vrrp_evip_handler);
 	install_keyword("virtual_routes", &vrrp_vroutes_handler);
