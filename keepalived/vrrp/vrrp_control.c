@@ -338,6 +338,72 @@ error:
 }
 
 /*
+ * Set priority actions
+ */
+
+static int
+vrrp_control_set_manual_priority(int prio)
+{
+	int err = 0;
+	element e;
+	vrrp_rt *vrrp;
+
+	if (prio < -1 || prio > 255)
+		return -1;
+
+	log_message(LOG_INFO, "set manual priority to %d for all VRRP instances",
+		prio);
+
+	for(e = LIST_HEAD(vrrp_data->vrrp); e; ELEMENT_NEXT(e)) {
+		vrrp = ELEMENT_DATA(e);
+
+		if (vrrp->sync) {
+			log_message(LOG_INFO, "VRRP_Instance(%s) Cannot set"
+				" manual priority because of sync group",
+				vrrp->iname);
+			continue;
+		}
+
+		if (vrrp->manual_priority == prio)
+			err = 1;
+		else
+			vrrp->manual_priority = prio;
+	}
+
+	return err;
+}
+
+static control_msg_t *
+vrrp_control_setprio(vrrp_ctx_t *vrrp_ctx)
+{
+	control_msg_t *msg = vrrp_ctx->msg;
+	control_msg_t *answer;
+	int ret;
+
+	if (msg->nb_args != 1)
+		return NULL;
+
+	if (LIST_ISEMPTY(vrrp_data->vrrp))
+		return control_msg_error(VRRP_SET_PRIO, NO_VRRP_INSTANCE, NULL);
+
+	ret = vrrp_control_set_manual_priority(MSG_GET_INT(msg, 0));
+	if (ret == -1)
+		return control_msg_error(VRRP_SET_PRIO, "Invalid priority value\n",
+			NULL);
+
+	if (!(answer = control_msg_new(VRRP_SET_PRIO, VRRP_RESP_OK)))
+		return NULL;
+
+	ADD_INT(answer, VRRP_CTRL_PRIO, ret);
+
+	return answer;
+
+error:
+	control_msg_free(answer);
+	return NULL;
+}
+
+/*
  * TRACKING
  */
 static int
@@ -457,6 +523,9 @@ vrrp_control_handle_msg(vrrp_ctx_t *vrrp_ctx)
 		break;
 	case VRRP_GET_ADDR:
 		answer = vrrp_control_vips(vrrp_ctx);
+		break;
+	case VRRP_SET_PRIO:
+		answer = vrrp_control_setprio(vrrp_ctx);
 		break;
 	default:
 		return -1;
