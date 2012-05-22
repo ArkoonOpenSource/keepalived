@@ -238,8 +238,7 @@ vrrp_init_state(list l)
 #endif
 			vrrp->state = VRRP_STATE_GOTO_MASTER;
 		} else {
-			vrrp->ms_down_timer = 3 * vrrp->adver_int
-			    + VRRP_TIMER_SKEW(vrrp);
+			vrrp->ms_down_timer = VRRP_TIMER_MS_DOWN(vrrp);
 #ifdef _HAVE_IPVS_SYNCD_
 			/* Check if sync daemon handling is needed */
 			if (vrrp->lvs_syncd_if)
@@ -662,7 +661,7 @@ vrrp_goto_master(vrrp_rt * vrrp)
 		if (vrrp->state != VRRP_STATE_FAULT)
 			notify_instance_exec(vrrp, VRRP_STATE_FAULT);
 		vrrp->state = VRRP_STATE_FAULT;
-		vrrp->ms_down_timer = 3 * vrrp->adver_int + VRRP_TIMER_SKEW(vrrp);
+		vrrp->ms_down_timer = VRRP_TIMER_MS_DOWN(vrrp);
 		notify_instance_exec(vrrp, VRRP_STATE_FAULT);
 	} else {
 		/* If becoming MASTER in IPSEC AH AUTH, we reset the anti-replay */
@@ -743,7 +742,7 @@ vrrp_master(vrrp_rt * vrrp)
 	if (vrrp->wantstate == VRRP_STATE_GOTO_FAULT ||
 	    vrrp->wantstate == VRRP_STATE_BACK ||
 	    vrrp->ipsecah_counter->cycle) {
-		vrrp->ms_down_timer = 3 * vrrp->adver_int + VRRP_TIMER_SKEW(vrrp);
+		vrrp->ms_down_timer = VRRP_TIMER_MS_DOWN(vrrp);
 
 		/* handle backup state transition */
 		vrrp_state_leave_master(vrrp);

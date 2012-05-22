@@ -64,6 +64,7 @@ typedef struct {		/* rfc2338.5.1 */
 #define VRRP_AUTH_AH		2		/* AH(IPSec) authentification - rfc2338.5.3.6 */
 #define VRRP_ADVER_DFL		1		/* advert. interval (in sec) -- rfc2338.5.3.7 */
 #define VRRP_GARP_DELAY 	(5 * TIMER_HZ)	/* Default delay to launch gratuitous arp */
+#define VRRP_MULT_FACTOR_DFL	3		/* multiplier factor between adver_int and time to consider MASTER down */
 
 /*
  * parameters per vrrp sync group. A vrrp_sync_group is a set
@@ -111,6 +112,8 @@ typedef struct _vrrp_rt {
 				 */
 	list vroutes;		/* list of virtual routes */
 	int adver_int;		/* delay between advertisements(in sec) */
+	int mult_factor;	/* multiplication factor between adver_int, and
+				 * timeout to consider peer node disconnected */
 	int nopreempt;          /* true if higher prio does not preempt lower */
 	long preempt_delay;     /* Seconds*TIMER_HZ after startup until
 				 * preemption based on higher prio over lower
@@ -195,6 +198,7 @@ typedef struct _vrrp_rt {
 #define VRRP_SEND_BUFFER_SIZE(V)	((V)->send_buffer_size)
 
 #define VRRP_TIMER_SKEW(svr)	((256-(svr)->base_priority)*TIMER_HZ/256)
+#define VRRP_TIMER_MS_DOWN(V)	(((V)->mult_factor * (V)->adver_int) + VRRP_TIMER_SKEW(V))
 #define VRRP_VIP_ISSET(V)	((V)->vipset)
 
 #define VRRP_MIN(a, b)	((a) < (b)?(a):(b))

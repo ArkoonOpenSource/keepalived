@@ -217,6 +217,8 @@ dump_vrrp(void *data)
 	log_message(LOG_INFO, "   Priority = %d", vrrp->base_priority);
 	log_message(LOG_INFO, "   Advert interval = %dsec",
 	       vrrp->adver_int / TIMER_HZ);
+	log_message(LOG_INFO, "   Master down interval = %dsec",
+	       vrrp->mult_factor * vrrp->adver_int / TIMER_HZ);
 	if (vrrp->nopreempt)
 		log_message(LOG_INFO, "   Preempt disabled");
 	if (vrrp->preempt_delay)
@@ -307,6 +309,7 @@ alloc_vrrp(char *iname)
 	new->adver_int = TIMER_HZ;
 	new->iname = (char *) MALLOC(size + 1);
 	memcpy(new->iname, iname, size);
+	new->mult_factor = VRRP_MULT_FACTOR_DFL;
 
 	list_add(vrrp_data->vrrp, new);
 }
