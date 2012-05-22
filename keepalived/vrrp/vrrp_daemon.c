@@ -64,6 +64,9 @@ stop_vrrp(void)
 	vrrp_control_close();
 #endif
 
+	if (!(debug & 8))
+		shutdown_vrrp_instances();
+
 	free_interface_queue();
 	gratuitous_arp_close();
 	ndisc_close();
