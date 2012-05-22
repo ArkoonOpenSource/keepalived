@@ -26,6 +26,7 @@
 #include "vrrp_arp.h"
 #include "vrrp_ndisc.h"
 #include "vrrp_netlink.h"
+#include "vrrp_control.h"
 #include "vrrp_ipaddress.h"
 #include "vrrp_iproute.h"
 #include "vrrp_parser.h"
@@ -59,8 +60,13 @@ stop_vrrp(void)
 	netlink_rtlist_ipv4(vrrp_data->static_routes, IPROUTE_DEL);
 	netlink_iplist(vrrp_data->static_addresses, IPADDRESS_DEL);
 
+#ifdef _WITH_CONTROL_
+	vrrp_control_close();
+#endif
+
 	if (!(debug & 8))
 		shutdown_vrrp_instances();
+
 	free_interface_queue();
 	gratuitous_arp_close();
 	ndisc_close();
@@ -113,6 +119,12 @@ start_vrrp(void)
 		stop_vrrp();
 		return;
 	}
+
+
+#ifdef _WITH_CONTROL_
+	log_message(LOG_INFO, "Control init");
+	vrrp_control_init();
+#endif
 
 	if (reload) {
 		clear_diff_saddresses();
@@ -195,6 +207,9 @@ reload_vrrp_thread(thread_t * thread)
 	/* Destroy master thread */
 	thread_destroy_master(master);
 	master = thread_make_master();
+#ifdef _WITH_CONTROL_
+	vrrp_control_close();
+#endif
 	free_global_data(data);
 	free_interface_queue();
 	free_vrrp_buffer();
