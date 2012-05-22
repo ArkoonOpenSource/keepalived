@@ -407,6 +407,95 @@ error:
 }
 
 /*
+ * Failover, Recover
+ */
+struct prio_resp {
+	int prio;
+	const char *OK;
+	const char *WARN;
+};
+
+static struct prio_resp fmt_prio[] =
+{
+	{ .prio = VRRP_FAILOVER_PRIO, .OK = "OK: All unsynced instances went to failover state\n",
+		.WARN = "WARN: All instances were already in failover state\n", },
+	{ .prio = VRRP_RECOVER_PRIO, .OK = "OK: All unsynced instances recovered from failover state\n",
+		.WARN= "WARN: All instances were not in failover state\n", },
+};
+
+static char *
+get_prio_response(int priority, int is_nok)
+{
+	int i;
+
+	for (i = 0; i < sizeof(fmt_prio)/sizeof(struct prio_resp); i++) {
+		if (fmt_prio[i].prio == priority) {
+			if (is_nok)
+				return strdup(fmt_prio[i].WARN);
+			return strdup(fmt_prio[i].OK);
+		}
+	}
+
+	return strdup("ERR: Unknown priority value\n");
+}
+
+/*
+ * Send priority value to set
+ */
+control_msg_t *
+send_setprio_generic(action_ctx_t *actx, int set_prio)
+{
+	control_msg_t *msg;
+
+	if (!(msg = control_msg_new(VRRP_SET_PRIO, VRRP_REQ)))
+		return NULL;
+
+	if (control_msg_add_arg_int(msg, VRRP_CTRL_PRIO, set_prio, actx->err))
+		goto error;
+
+	return msg;
+
+error:
+	control_msg_free(msg);
+	return NULL;
+}
+
+control_msg_t *
+send_setprio_failover(action_ctx_t *actx)
+{
+	return send_setprio_generic(actx, VRRP_FAILOVER_PRIO);
+}
+
+control_msg_t *
+send_setprio_recover(action_ctx_t *actx)
+{
+	return send_setprio_generic(actx, VRRP_RECOVER_PRIO);
+}
+
+char *
+recv_setprio_generic(action_ctx_t *actx, control_msg_t *msg, int prio)
+{
+	char *check;
+
+	if (check = check_recv_msg(msg, VRRP_SET_PRIO))
+		return check;
+
+	return get_prio_response(prio, MSG_GET_INT(msg, 0));
+}
+
+char *
+recv_setprio_failover(action_ctx_t *actx, control_msg_t *msg)
+{
+	return recv_setprio_generic(actx, msg, VRRP_FAILOVER_PRIO);
+}
+
+char *
+recv_setprio_recover(action_ctx_t *actx, control_msg_t *msg)
+{
+	return recv_setprio_generic(actx, msg, VRRP_RECOVER_PRIO);
+}
+
+/*
  * Get virtual IPs
  */
 control_msg_t *
@@ -514,6 +603,8 @@ action_t actions[] = {
 	{"groups", "show groups information", send_groups, recv_groups},
 	{"vips", "show virtual IP addresses", send_vips, recv_vips},
 	{"tracking", "show tracking information", send_tracking, recv_tracking},
+	{"failover", "set priority to 0", send_setprio_failover, recv_setprio_failover},
+	{"recover", "recover from failover state", send_setprio_recover, recv_setprio_recover},
 };
 
 static void print_list_command(FILE *f)
