@@ -310,6 +310,7 @@ alloc_vrrp(char *iname)
 	new->iname = (char *) MALLOC(size + 1);
 	memcpy(new->iname, iname, size);
 	new->mult_factor = VRRP_MULT_FACTOR_DFL;
+	new->manual_priority = -1;
 
 	list_add(vrrp_data->vrrp, new);
 }
