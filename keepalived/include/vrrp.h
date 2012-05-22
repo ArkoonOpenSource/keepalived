@@ -103,6 +103,7 @@ typedef struct _vrrp_rt {
 	int vrid;		/* virtual id. from 1(!) to 255 */
 	int base_priority;	/* configured priority value */
 	int effective_priority;	/* effective priority value */
+	int manual_priority;
 	int vipset;		/* All the vips are set ? */
 	list vip;		/* list of virtual ip addresses */
 	list evip;		/* list of protocol excluded VIPs.
@@ -157,6 +158,7 @@ typedef struct _vrrp_rt {
 
 	/* IPSEC AH counter def --rfc2402.3.3.2 */
 	seq_counter *ipsecah_counter;
+
 } vrrp_rt;
 
 /* VRRP state machine -- rfc2338.6.4 */

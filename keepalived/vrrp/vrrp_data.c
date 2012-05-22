@@ -307,6 +307,7 @@ alloc_vrrp(char *iname)
 	new->adver_int = TIMER_HZ;
 	new->iname = (char *) MALLOC(size + 1);
 	memcpy(new->iname, iname, size);
+	new->manual_priority = -1;
 
 	list_add(vrrp_data->vrrp, new);
 }
