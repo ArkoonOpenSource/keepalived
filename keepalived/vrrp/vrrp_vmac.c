@@ -17,7 +17,7 @@
  *              as published by the Free Software Foundation; either version
  *              2 of the License, or (at your option) any later version.
  *
- * Copyright (C) 2001-2011 Alexandre Cassen, <acassen@linux-vs.org>
+ * Copyright (C) 2001-2012 Alexandre Cassen, <acassen@gmail.com>
  */
 
 /* local include */
@@ -27,10 +27,12 @@
 #include "logger.h"
 #include "memory.h"
 #include "utils.h"
+#include "parser.h"
 
 /* private matter */
 static const char *ll_kind = "macvlan";
 
+#ifdef _HAVE_VRRP_VMAC_
 /* Link layer handling */
 static int
 netlink_link_setlladdr(vrrp_rt *vrrp)
@@ -62,6 +64,50 @@ netlink_link_setlladdr(vrrp_rt *vrrp)
 }
 
 static int
+netlink_link_setmode(vrrp_rt *vrrp)
+{
+	int status = 1;
+	struct {
+		struct nlmsghdr n;
+		struct ifinfomsg ifi;
+		char buf[256];
+	} req;
+	struct rtattr *linkinfo;
+	struct rtattr *data;
+
+	memset(&req, 0, sizeof (req));
+
+	req.n.nlmsg_len = NLMSG_LENGTH(sizeof (struct ifinfomsg));
+	req.n.nlmsg_flags = NLM_F_REQUEST;
+	req.n.nlmsg_type = RTM_NEWLINK;
+	req.ifi.ifi_family = AF_INET;
+	req.ifi.ifi_index = IF_INDEX(vrrp->ifp);
+
+	linkinfo = NLMSG_TAIL(&req.n);
+	addattr_l(&req.n, sizeof(req), IFLA_LINKINFO, NULL, 0);
+	addattr_l(&req.n, sizeof(req), IFLA_INFO_KIND, (void *) ll_kind,
+		  strlen(ll_kind));
+
+	data = NLMSG_TAIL(&req.n);
+	addattr_l(&req.n, sizeof(req), IFLA_INFO_DATA, NULL, 0);
+
+	/*
+	 * In private mode, macvlan will receive frames with same MAC addr
+	 * as configured on the interface.
+	 */
+	addattr32(&req.n, sizeof(req), IFLA_MACVLAN_MODE,
+		  MACVLAN_MODE_PRIVATE);
+	data->rta_len = (void *)NLMSG_TAIL(&req.n) - (void *)data;
+
+	linkinfo->rta_len = (void *)NLMSG_TAIL(&req.n) - (void *)linkinfo;
+
+	if (netlink_talk(&nl_cmd, &req.n) < 0)
+		status = -1;
+
+	return status;
+}
+
+static int
 netlink_link_up(vrrp_rt *vrrp)
 {
 	int status = 1;
@@ -86,10 +132,12 @@ netlink_link_up(vrrp_rt *vrrp)
 
 	return status;
 }
+#endif
 
 int
 netlink_link_add_vmac(vrrp_rt *vrrp)
 {
+#ifdef _HAVE_VRRP_VMAC_
 	struct rtattr *linkinfo;
 	interface *ifp;
 	char ifname[IFNAMSIZ];
@@ -103,8 +151,21 @@ netlink_link_add_vmac(vrrp_rt *vrrp)
 		return -1;
 
 	memset(&req, 0, sizeof (req));
-	snprintf(ifname, IFNAMSIZ, "vrrp.%d", vrrp->vrid);
+	memset(ifname, 0, IFNAMSIZ);
+	strncpy(ifname, vrrp->vmac_ifname, IFNAMSIZ - 1);
 
+	/* 
+	 * Check to see if this vmac interface was created 
+	 * by a previous instance.
+	 */
+	if (reload && (ifp = if_get_by_ifname(ifname))) {
+		vrrp->ifp = ifp;
+		/* Save ifindex for use on delete */
+		vrrp->vmac_ifindex = IF_INDEX(vrrp->ifp);
+		vrrp->vmac |= 2;
+		return 1;
+	}
+	
 	req.n.nlmsg_len = NLMSG_LENGTH(sizeof (struct ifinfomsg));
 	req.n.nlmsg_flags = NLM_F_REQUEST | NLM_F_CREATE | NLM_F_EXCL;
 	req.n.nlmsg_type = RTM_NEWLINK;
@@ -130,10 +191,19 @@ netlink_link_add_vmac(vrrp_rt *vrrp)
 	if (!ifp)
 		return -1;
 	vrrp->ifp = ifp;
+	vrrp->vmac_ifindex = IF_INDEX(vrrp->ifp); /* For use on delete */
 	vrrp->vmac |= 2;
 	netlink_link_setlladdr(vrrp);
 	netlink_link_up(vrrp);
 
+	/*
+	 * By default MACVLAN interface are in VEPA mode which filters
+	 * out received packets whose MAC source address matches that
+	 * of the MACVLAN interface. Setting MACVLAN interface in private
+	 * mode will not filter based on source MAC address.
+	 */
+	netlink_link_setmode(vrrp);
+#endif
 	return 1;
 }
 
@@ -141,6 +211,8 @@ int
 netlink_link_del_vmac(vrrp_rt *vrrp)
 {
 	int status = 1;
+
+#ifdef _HAVE_VRRP_VMAC_
 	struct {
 		struct nlmsghdr n;
 		struct ifinfomsg ifi;
@@ -156,10 +228,11 @@ netlink_link_del_vmac(vrrp_rt *vrrp)
 	req.n.nlmsg_flags = NLM_F_REQUEST;
 	req.n.nlmsg_type = RTM_DELLINK;
 	req.ifi.ifi_family = AF_INET;
-	req.ifi.ifi_index = IF_INDEX(vrrp->ifp);
+	req.ifi.ifi_index = vrrp->vmac_ifindex;
 
 	if (netlink_talk(&nl_cmd, &req.n) < 0)
 		status = -1;
+#endif
 
 	return status;
 }
