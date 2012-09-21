@@ -17,7 +17,7 @@
  *              as published by the Free Software Foundation; either version
  *              2 of the License, or (at your option) any later version.
  *
- * Copyright (C) 2001-2011 Alexandre Cassen, <acassen@linux-vs.org>
+ * Copyright (C) 2001-2012 Alexandre Cassen, <acassen@gmail.com>
  */
 
 #include <netdb.h>
@@ -33,16 +33,16 @@ check_conf_data *check_data = NULL;
 check_conf_data *old_check_data = NULL;
 
 /* SSL facility functions */
-SSL_DATA *
+ssl_data_t *
 alloc_ssl(void)
 {
-	SSL_DATA *ssl = (SSL_DATA *) MALLOC(sizeof (SSL_DATA));
+	ssl_data_t *ssl = (ssl_data_t *) MALLOC(sizeof(ssl_data_t));
 	return ssl;
 }
 void
 free_ssl(void)
 {
-	SSL_DATA *ssl = check_data->ssl;
+	ssl_data_t *ssl = check_data->ssl;
 
 	if (!ssl)
 		return;
@@ -55,7 +55,7 @@ free_ssl(void)
 static void
 dump_ssl(void)
 {
-	SSL_DATA *ssl = check_data->ssl;
+	ssl_data_t *ssl = check_data->ssl;
 
 	if (ssl->password)
 		log_message(LOG_INFO, " Password : %s", ssl->password);
@@ -128,19 +128,19 @@ alloc_vsg(char *gname)
 	list_add(check_data->vs_group, new);
 }
 void
-alloc_vsg_entry(vector strvec)
+alloc_vsg_entry(vector_t *strvec)
 {
 	virtual_server_group *vsg = LIST_TAIL_DATA(check_data->vs_group);
 	virtual_server_group_entry *new;
 
 	new = (virtual_server_group_entry *) MALLOC(sizeof (virtual_server_group_entry));
 
-	if (!strcmp(VECTOR_SLOT(strvec, 0), "fwmark")) {
-		new->vfwmark = atoi(VECTOR_SLOT(strvec, 1));
+	if (!strcmp(vector_slot(strvec, 0), "fwmark")) {
+		new->vfwmark = atoi(vector_slot(strvec, 1));
 		list_add(vsg->vfwmark, new);
 	} else {
-		new->range = inet_stor(VECTOR_SLOT(strvec, 0));
-		inet_stosockaddr(VECTOR_SLOT(strvec, 0), VECTOR_SLOT(strvec, 1), &new->addr);
+		new->range = inet_stor(vector_slot(strvec, 0));
+		inet_stosockaddr(vector_slot(strvec, 0), vector_slot(strvec, 1), &new->addr);
 		if (!new->range)
 			list_add(vsg->addr_ip, new);
 		else
@@ -214,7 +214,7 @@ dump_vs(void *data)
 	}
 
 	if (vs->s_svr) {
-		log_message(LOG_INFO, "   sorry server = %s:%d"
+		log_message(LOG_INFO, "   sorry server = [%s]:%d"
 				    , inet_sockaddrtos(&vs->s_svr->addr)
 				    , ntohs(inet_sockaddrport(&vs->s_svr->addr)));
 	}
@@ -332,27 +332,27 @@ alloc_check_data(void)
 }
 
 void
-free_check_data(check_conf_data *check_data)
+free_check_data(check_conf_data *data)
 {
-	free_list(check_data->vs);
-	free_list(check_data->vs_group);
-	FREE(check_data);
+	free_list(data->vs);
+	free_list(data->vs_group);
+	FREE(data);
 }
 
 void
-dump_check_data(check_conf_data *check_data)
+dump_check_data(check_conf_data *data)
 {
-	if (check_data->ssl) {
+	if (data->ssl) {
 		log_message(LOG_INFO, "------< SSL definitions >------");
 		dump_ssl();
 	}
-	if (!LIST_ISEMPTY(check_data->vs)) {
+	if (!LIST_ISEMPTY(data->vs)) {
 		log_message(LOG_INFO, "------< LVS Topology >------");
 		log_message(LOG_INFO, " System is compiled with LVS v%d.%d.%d",
 		       NVERSION(IP_VS_VERSION_CODE));
-		if (!LIST_ISEMPTY(check_data->vs_group))
-			dump_list(check_data->vs_group);
-		dump_list(check_data->vs);
+		if (!LIST_ISEMPTY(data->vs_group))
+			dump_list(data->vs_group);
+		dump_list(data->vs);
 	}
 	dump_checkers_queue();
 }

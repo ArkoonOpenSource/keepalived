@@ -17,7 +17,7 @@
  *              as published by the Free Software Foundation; either version
  *              2 of the License, or (at your option) any later version.
  *
- * Copyright (C) 2001-2011 Alexandre Cassen, <acassen@linux-vs.org>
+ * Copyright (C) 2001-2012 Alexandre Cassen, <acassen@linux-vs.org>
  */
 
 #include <syslog.h>
@@ -36,13 +36,15 @@ void
 log_message(const int facility, const char *format, ...)
 {
 	va_list args;
+	char buf[256];
 
-	va_start(args,format);
+	va_start(args, format);
+	vsnprintf(buf, sizeof(buf), format, args);
+	va_end(args);
 
 	if (log_console) {
-		vfprintf(stderr, format, args);
-		fprintf(stderr,"\n");
+		fprintf(stderr, "%s\n", buf);
 	}
 
-	vsyslog(facility, format, args);
+	syslog(facility, "%s", buf);
 }

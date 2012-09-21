@@ -17,7 +17,7 @@
  *              as published by the Free Software Foundation; either version
  *              2 of the License, or (at your option) any later version.
  *
- * Copyright (C) 2001-2011 Alexandre Cassen, <acassen@linux-vs.org>
+ * Copyright (C) 2001-2012 Alexandre Cassen, <acassen@gmail.com>
  */
 
 #include "vrrp_daemon.h"
@@ -40,6 +40,9 @@
 #ifdef _WITH_LVS_
   #include "ipvswrapper.h"
 #endif
+#ifdef _WITH_SNMP_
+  #include "vrrp_snmp.h"
+#endif
 #include "list.h"
 #include "main.h"
 #include "memory.h"
@@ -53,8 +56,10 @@ stop_vrrp(void)
 {
 	/* Destroy master thread */
 	signal_handler_destroy();
-	free_vrrp_sockpool(vrrp_data);
 	thread_destroy_master(master);
+
+	if (!(debug & 8))
+		shutdown_vrrp_instances();
 
 	/* Clear static entries */
 	netlink_rtlist_ipv4(vrrp_data->static_routes, IPROUTE_DEL);
@@ -64,18 +69,20 @@ stop_vrrp(void)
 	vrrp_control_close();
 #endif
 
-	if (!(debug & 8))
-		shutdown_vrrp_instances();
-
 	free_interface_queue();
 	gratuitous_arp_close();
 	ndisc_close();
+#ifdef _WITH_SNMP_
+	if (snmp)
+		vrrp_snmp_agent_close();
+#endif
 
 	/* Stop daemon */
 	pidfile_rm(vrrp_pidfile);
 
 	/* Clean data */
-	free_global_data(data);
+	free_global_data(global_data);
+	free_vrrp_sockpool(vrrp_data);
 	free_vrrp_data(vrrp_data);
 	free_vrrp_buffer();
 
@@ -105,13 +112,17 @@ start_vrrp(void)
 	kernel_netlink_init();
 	gratuitous_arp_init();
 	ndisc_init();
+#ifdef _WITH_SNMP_
+	if (!reload && snmp)
+		vrrp_snmp_agent_init();
+#endif
 
 #ifdef _WITH_LVS_
 	/* Initialize ipvs related */
 	ipvs_start();
 #endif
 	/* Parse configuration file */
-	data = alloc_global_data();
+	global_data = alloc_global_data();
 	vrrp_data = alloc_vrrp_data();
 	alloc_vrrp_buffer();
 	init_data(conf_file, vrrp_init_keywords);
@@ -148,7 +159,7 @@ start_vrrp(void)
 
 	/* Dump configuration */
 	if (debug & 4) {
-		dump_global_data(data);
+		dump_global_data(global_data);
 		dump_vrrp_data(vrrp_data);
 	}
 
@@ -165,8 +176,6 @@ int reload_vrrp_thread(thread_t * thread);
 void
 sighup_vrrp(void *v, int sig)
 {
-	log_message(LOG_INFO, "Reloading VRRP child process(%d) on signal",
-		    getpid());
 	thread_add_event(master, reload_vrrp_thread, NULL, 0);
 }
 
@@ -174,7 +183,6 @@ sighup_vrrp(void *v, int sig)
 void
 sigend_vrrp(void *v, int sig)
 {
-	log_message(LOG_INFO, "Terminating VRRP child process on signal");
 	if (master)
 		thread_add_terminate_event(master);
 }
@@ -197,9 +205,6 @@ reload_vrrp_thread(thread_t * thread)
 	/* set the reloading flag */
 	SET_RELOAD;
 
-	/* Close sockpool */
-	free_vrrp_sockpool(vrrp_data);
-
 	/* Signal handling */
 	signal_reset();
 	signal_handler_destroy();
@@ -210,7 +215,7 @@ reload_vrrp_thread(thread_t * thread)
 #ifdef _WITH_CONTROL_
 	vrrp_control_close();
 #endif
-	free_global_data(data);
+	free_global_data(global_data);
 	free_interface_queue();
 	free_vrrp_buffer();
 	gratuitous_arp_close();
@@ -230,6 +235,9 @@ reload_vrrp_thread(thread_t * thread)
 	vrrp_signal_init();
 	signal_set(SIGCHLD, thread_child_handler, master);
 	start_vrrp();
+
+	/* Close sockpool */
+	free_vrrp_sockpool(old_vrrp_data);
 
 	/* free backup data */
 	free_vrrp_data(old_vrrp_data);
@@ -255,7 +263,7 @@ vrrp_respawn_thread(thread_t * thread)
 	}
 
 	/* We catch a SIGCHLD, handle it */
-	log_message(LOG_INFO, "VRRP child process(%d) died: Respawning", pid);
+	log_message(LOG_ALERT, "VRRP child process(%d) died: Respawning", pid);
 	start_vrrp_child();
 	return 0;
 }
@@ -304,6 +312,9 @@ start_vrrp_child(void)
 
 	/* change to / dir */
 	ret = chdir("/");
+	if (ret < 0) {
+		log_message(LOG_INFO, "VRRP child process: error chdir");
+	}
 
 	/* Set mask */
 	umask(0);
