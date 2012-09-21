@@ -17,7 +17,7 @@
  *              as published by the Free Software Foundation; either version
  *              2 of the License, or (at your option) any later version.
  *
- * Copyright (C) 2001-2011 Alexandre Cassen, <acassen@linux-vs.org>
+ * Copyright (C) 2001-2012 Alexandre Cassen, <acassen@linux-vs.org>
  */
 
 #ifndef _SCHEDULER_H
@@ -42,7 +42,7 @@ typedef struct _thread {
 	struct _thread_master *master;	/* pointer to the struct thread_master. */
 	int (*func) (struct _thread *);	/* event function */
 	void *arg;			/* event argument */
-	TIMEVAL sands;			/* rest of time sands value. */
+	timeval_t sands;		/* rest of time sands value. */
 	union {
 		int val;		/* second argument of the event. */
 		int fd;			/* file descriptor in case of read/write. */

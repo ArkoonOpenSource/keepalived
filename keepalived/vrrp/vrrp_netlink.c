@@ -17,7 +17,7 @@
  *              as published by the Free Software Foundation; either version
  *              2 of the License, or (at your option) any later version.
  *
- * Copyright (C) 2001-2011 Alexandre Cassen, <acassen@linux-vs.org>
+ * Copyright (C) 2001-2012 Alexandre Cassen, <acassen@gmail.com>
  */
 
 /* global include */
@@ -682,10 +682,8 @@ netlink_broadcast_filter(struct sockaddr_nl *snl, struct nlmsghdr *h)
 int
 kernel_netlink(thread_t * thread)
 {
-	int status = 0;
-
 	if (thread->type != THREAD_READ_TIMEOUT)
-		status = netlink_parse_info(netlink_broadcast_filter, &nl_kernel, NULL);
+		netlink_parse_info(netlink_broadcast_filter, &nl_kernel, NULL);
 	thread_add_read(master, kernel_netlink, NULL, nl_kernel.fd,
 			NETLINK_TIMER);
 	return 0;

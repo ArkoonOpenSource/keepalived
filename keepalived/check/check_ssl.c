@@ -20,7 +20,7 @@
  *              as published by the Free Software Foundation; either version
  *              2 of the License, or (at your option) any later version.
  *
- * Copyright (C) 2001-2011 Alexandre Cassen, <acassen@linux-vs.org>
+ * Copyright (C) 2001-2012 Alexandre Cassen, <acassen@gmail.com>
  */
 
 #include <openssl/err.h>
@@ -36,7 +36,7 @@
 /* SSL primitives */
 /* Free an SSL context */
 void
-clear_ssl(SSL_DATA * ssl)
+clear_ssl(ssl_data_t *ssl)
 {
 	if (ssl)
 		if (ssl->ctx)
@@ -47,7 +47,7 @@ clear_ssl(SSL_DATA * ssl)
 static int
 password_cb(char *buf, int num, int rwflag, void *userdata)
 {
-	SSL_DATA *ssl = (SSL_DATA *) userdata;
+	ssl_data_t *ssl = (ssl_data_t *) userdata;
 	unsigned int plen = strlen(ssl->password);
 
 	if (num < plen + 1)
@@ -62,7 +62,7 @@ static BIO *bio_err = 0;
 static int
 build_ssl_ctx(void)
 {
-	SSL_DATA *ssl;
+	ssl_data_t *ssl;
 
 	/* Library initialization */
 	SSL_library_init();
@@ -71,12 +71,12 @@ build_ssl_ctx(void)
 	bio_err = BIO_new_fp(stderr, BIO_NOCLOSE);
 
 	if (!check_data->ssl)
-		ssl = (SSL_DATA *) MALLOC(sizeof (ssl_data));
+		ssl = (ssl_data_t *) MALLOC(sizeof(ssl_data_t));
 	else
 		ssl = check_data->ssl;
 
 	/* Initialize SSL context for SSL v2/3 */
-	ssl->meth = SSLv23_method();
+	ssl->meth = (SSL_METHOD *) SSLv23_method();
 	ssl->ctx = SSL_CTX_new(ssl->meth);
 
 	/* return for autogen context */
@@ -134,14 +134,14 @@ build_ssl_ctx(void)
 int
 init_ssl_ctx(void)
 {
-	SSL_DATA *ssl = check_data->ssl;
+	ssl_data_t *ssl = check_data->ssl;
 
 	if (!build_ssl_ctx()) {
 		log_message(LOG_INFO, "Error Initialize SSL, ctx Instance");
 		log_message(LOG_INFO, "  SSL  keyfile:%s", ssl->keyfile);
 		log_message(LOG_INFO, "  SSL password:%s", ssl->password);
 		log_message(LOG_INFO, "  SSL   cafile:%s", ssl->cafile);
-		log_message(LOG_INFO, "Terminate...\n");
+		log_message(LOG_INFO, "Terminate...");
 		clear_ssl(ssl);
 		return 0;
 	}

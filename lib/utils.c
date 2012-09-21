@@ -17,7 +17,7 @@
  *              as published by the Free Software Foundation; either version
  *              2 of the License, or (at your option) any later version.
  *
- * Copyright (C) 2001-2011 Alexandre Cassen, <acassen@linux-vs.org>
+ * Copyright (C) 2001-2012 Alexandre Cassen, <acassen@linux-vs.org>
  */
 
 #include "utils.h"
@@ -147,16 +147,15 @@ inet_stom(char *addr)
 uint8_t
 inet_stor(char *addr)
 {
-	uint8_t range = 0;
 	char *cp = addr;
 
 	if (!strstr(addr, "-"))
-		return range;
+		return 0;
 	while (*cp != '-' && *cp != '\0')
 		cp++;
 	if (*cp == '-')
-		return atoi(++cp);
-	return range;
+		return strtoul(++cp, NULL, (strchr(addr, ':')) ? 16 : 10);
+	return 0;
 }
 
 /* IP string to sockaddr_storage */
