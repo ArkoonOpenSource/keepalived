@@ -18,7 +18,7 @@
  *              as published by the Free Software Foundation; either version
  *              2 of the License, or (at your option) any later version.
  *
- * Copyright (C) 2001-2011 Alexandre Cassen, <acassen@linux-vs.org>
+ * Copyright (C) 2001-2012 Alexandre Cassen, <acassen@gmail.com>
  */
 
 #ifndef _CHECK_SSL_H
@@ -30,7 +30,7 @@
 /* Prototypes */
 extern void install_ssl_check_keyword(void);
 extern int init_ssl_ctx(void);
-extern void clear_ssl(SSL_DATA *);
+extern void clear_ssl(ssl_data_t *);
 extern int ssl_connect(thread_t *, int);
 extern int ssl_printerr(int);
 extern int ssl_send_request(SSL *, char *, int);

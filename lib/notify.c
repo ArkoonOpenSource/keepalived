@@ -17,13 +17,14 @@
  *              as published by the Free Software Foundation; either version
  *              2 of the License, or (at your option) any later version.
  *
- * Copyright (C) 2001-2011 Alexandre Cassen, <acassen@linux-vs.org>
+ * Copyright (C) 2001-2012 Alexandre Cassen, <acassen@linux-vs.org>
  */
 
 #include <unistd.h>
 #include <stdlib.h>
 #include <syslog.h>
 #include <fcntl.h>
+#include <errno.h>
 #include "notify.h"
 #include "signals.h"
 #include "logger.h"
@@ -79,8 +80,16 @@ notify_exec(char *cmd)
 	closeall(0);
 
 	open("/dev/null", O_RDWR);
+
 	ret = dup(0);
+	if (ret < 0) {
+		log_message(LOG_INFO, "dup(0) error");
+	}
+
 	ret = dup(0);
+	if (ret < 0) {
+		log_message(LOG_INFO, "dup(0) error");
+	}
 
 	system_call(cmd);
 
