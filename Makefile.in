@@ -10,10 +10,15 @@ TARFILES = AUTHOR bin ChangeLog configure configure.in CONTRIBUTORS COPYING \
 
 TARBALL = keepalived-@VERSION@.tar.gz
 
+CONTROL_CLIENT_FLAG = @CONTROL_CLIENT_SUPPORT@
+
 all:
 	$(MAKE) -C lib || exit 1;
 	$(MAKE) -C keepalived
 	$(MAKE) -C genhash
+ifeq ($(CONTROL_CLIENT_FLAG),_WITH_CONTROL_CLIENT_)
+	$(MAKE) -C keepalived-client
+endif
 	@echo ""
 	@echo "Make complete"
 
@@ -33,11 +38,17 @@ clean:
 	$(MAKE) -C lib clean
 	$(MAKE) -C keepalived clean
 	$(MAKE) -C genhash clean
+ifeq ($(CONTROL_CLIENT_FLAG),_WITH_CONTROL_CLIENT_)
+	$(MAKE) -C keepalived-client clean
+endif
 
 distclean:
 	$(MAKE) -C lib distclean
 	$(MAKE) -C keepalived distclean
 	$(MAKE) -C genhash distclean
+ifeq ($(CONTROL_CLIENT_FLAG),_WITH_CONTROL_CLIENT_)
+	$(MAKE) -C keepalived-client distclean
+endif
 	rm -f Makefile
 	rm -f keepalived.spec
 
@@ -47,10 +58,16 @@ mrproper: distclean
 uninstall:
 	$(MAKE) -C keepalived uninstall
 	$(MAKE) -C genhash uninstall
+ifeq ($(CONTROL_CLIENT_FLAG),_WITH_CONTROL_CLIENT_)
+	$(MAKE) -C keepalived-client uninstall
+endif
 
 install:
 	$(MAKE) -C keepalived install
 	$(MAKE) -C genhash install
+ifeq ($(CONTROL_CLIENT_FLAG),_WITH_CONTROL_CLIENT_)
+	$(MAKE) -C keepalived-client install
+endif
 
 tarball: mrproper
 	mkdir keepalived-@VERSION@
